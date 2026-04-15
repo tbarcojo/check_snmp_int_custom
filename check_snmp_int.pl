@@ -696,11 +696,18 @@ for (my $i=0;$i<$num_int;$i++) {
     $return = write_file($temp_file_name,$n_rows,$n_items_check,@file_values);
     verb("Write file returned : $return");
 
+    # ── UDT: friendly port name ──────────────────────────────────
+    my $friendly_name = $descr[$i];
+    if    ($friendly_name =~ /Port:\s*(\d+)\s+10G/i)     { $friendly_name = "Port $1 (10G)"; }
+    elsif ($friendly_name =~ /Port:\s*(\d+)\s+Gigabit/i) { $friendly_name = "Port $1 (1G)";  }
+    elsif ($friendly_name =~ /Port:\s*(\d+)/i)            { $friendly_name = "Port $1";       }
+    # ─────────────────────────────────────────────────────────────
+
     if (defined($o_short)) {
-      my $sd = ($o_short<0) ? substr($descr[$i],$o_short) : substr($descr[$i],0,$o_short);
-      $print_out .= sprintf("%s:%s",$sd,$status{$int_status});
+      my $sd = ($o_short<0) ? substr($friendly_name,$o_short) : substr($friendly_name,0,$o_short);
+      $print_out .= sprintf("%s: %s",$sd,$status{$int_status});
     } else {
-      $print_out .= sprintf("%s:%s",$descr[$i],$status{$int_status});
+      $print_out .= sprintf("%s: %s",$friendly_name,$status{$int_status});
     }
 
     if ($return != 0) {
@@ -709,24 +716,36 @@ for (my $i=0;$i<$num_int;$i++) {
     }
 
     if (defined($checkperf_out[0])) {
-      $print_out .= " (";
-      my $num_checkperf = (defined($o_ext_checkperf)) ? 6 : 2;
-      for (my $l=0;$l<$num_checkperf;$l++) {
-        $checkperf_out_desc = (defined($o_label)) ? $countername[$l] : "";
-        verb("Interface $i, check $l : $checkperf_out[$l]");
-        if ($l!=0) { $print_out .= "/"; }
-        if (($o_crit[$l]!=0) && ($checkperf_out[$l]>$o_crit[$l])) {
-          $final_status=2;
-          $print_out .= sprintf("CRIT %s%.1f",$checkperf_out_desc,$checkperf_out[$l]);
-        } elsif (($o_warn[$l]!=0) && ($checkperf_out[$l]>$o_warn[$l])) {
-          $final_status=($final_status==2)?2:1;
-          $print_out .= sprintf("WARN %s%.1f",$checkperf_out_desc,$checkperf_out[$l]);
-        } else {
-          $print_out .= sprintf("%s%.1f",$checkperf_out_desc,$checkperf_out[$l]);
+      # ── UDT: user-friendly bandwidth display ──────────────────
+      my $in_str  = sprintf("%.1f%s", $checkperf_out[0], $speed_unit);
+      my $out_str = sprintf("%.1f%s", $checkperf_out[1], $speed_unit);
+      if    (($o_crit[0]!=0) && ($checkperf_out[0]>$o_crit[0])) { $final_status=2; $in_str="CRIT $in_str"; }
+      elsif (($o_warn[0]!=0) && ($checkperf_out[0]>$o_warn[0])) { $final_status=($final_status==2)?2:1; $in_str="WARN $in_str"; }
+      if    (($o_crit[1]!=0) && ($checkperf_out[1]>$o_crit[1])) { $final_status=2; $out_str="CRIT $out_str"; }
+      elsif (($o_warn[1]!=0) && ($checkperf_out[1]>$o_warn[1])) { $final_status=($final_status==2)?2:1; $out_str="WARN $out_str"; }
+      if (defined($o_ext_checkperf)) {
+        for (my $l=2;$l<6;$l++) {
+          verb("Interface $i, check $l : $checkperf_out[$l]");
+          if    (($o_crit[$l]!=0) && ($checkperf_out[$l]>$o_crit[$l])) { $final_status=2; }
+          elsif (($o_warn[$l]!=0) && ($checkperf_out[$l]>$o_warn[$l])) { $final_status=($final_status==2)?2:1; }
         }
-        if ($l==0||$l==1) { $print_out .= $speed_unit; }
       }
-      $print_out .= ")";
+      $print_out .= " (IN:$in_str OUT:$out_str)";
+      # ──────────────────────────────────────────────────────────
+
+      # ── UDT: perfdata in checkperf (-k) mode ──────────────────
+      if (defined($o_perf)) {
+        my $label = $descr[$i];
+        $label =~ s/[ :\/()]/\_/g;
+        $label =~ s/__+/_/g;
+        $label =~ s/^_|_$//g;
+        $perf_out = "" unless defined($perf_out);
+        $perf_out .= sprintf("'%s_in'=%.1f%s;%.1f;%.1f;; '%s_out'=%.1f%s;%.1f;%.1f;; ",
+            $label, $checkperf_out[0], $speed_unit, $o_warn[0], $o_crit[0],
+            $label, $checkperf_out[1], $speed_unit, $o_warn[1], $o_crit[1]);
+      }
+      # ──────────────────────────────────────────────────────────
+
     } else {
       $print_out .= " No usable data on file ($n_rows rows) ";
       $final_status=3; $usable_data=0;
