@@ -608,7 +608,7 @@ my $final_status = 0;
 my ($print_out,$perf_out) = (undef,undef);
 
 for (my $i=0;$i<$num_int;$i++) {
-  $print_out .= ", " if defined($print_out);
+  $print_out .= "\n" if defined($print_out);
   my $usable_data = 1;
   my $int_status = defined($o_admin)
     ? $$result{$admin_table.".".$tindex[$i]}
@@ -752,11 +752,15 @@ for (my $i=0;$i<$num_int;$i++) {
     }
 
   } else {
+    my $fn = $descr[$i];
+    if    ($fn =~ /Port:\s*(\d+)\s+10G/i)     { $fn = "Port $1 (10G)"; }
+    elsif ($fn =~ /Port:\s*(\d+)\s+Gigabit/i) { $fn = "Port $1 (1G)";  }
+    elsif ($fn =~ /Port:\s*(\d+)/i)            { $fn = "Port $1";       }
     if (defined($o_short)) {
-      my $sd = ($o_short<0) ? substr($descr[$i],$o_short) : substr($descr[$i],0,$o_short);
-      $print_out .= sprintf("%s:%s",$sd,$status{$int_status});
+      my $sd = ($o_short<0) ? substr($fn,$o_short) : substr($fn,0,$o_short);
+      $print_out .= sprintf("%s: %s",$sd,$status{$int_status});
     } else {
-      $print_out .= sprintf("%s:%s",$descr[$i],$status{$int_status});
+      $print_out .= sprintf("%s: %s",$fn,$status{$int_status});
     }
   }
 
